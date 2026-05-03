@@ -1,22 +1,22 @@
 package commands
 
 import (
-	"fmt"
+	"log/slog"
 
+	"redis/internal/app"
 	"redis/internal/protocol"
 )
 
-var DB = map[string]string{}
-
-type Handler func(*protocol.Value) *protocol.Value
+type Handler func(*protocol.Value, *app.AppState) *protocol.Value
 
 var Handlers = map[string]Handler{
-	"GET":  get,
-	"SET":  set,
-	"PING": ping,
+	"GET":     Get,
+	"SET":     Set,
+	"PING":    ping,
+	"COMMAND": command,
 }
 
-func get(v *protocol.Value) *protocol.Value {
+func Get(v *protocol.Value, state *app.AppState) *protocol.Value {
 	args := v.Array[1:]
 
 	if len(args) != 1 {
@@ -25,7 +25,7 @@ func get(v *protocol.Value) *protocol.Value {
 
 	key := args[0].Bulk
 
-	val, ok := DB[key]
+	val, ok := app.Data.Get(key)
 	if !ok {
 		return &protocol.Value{Type: protocol.Null}
 	}
@@ -33,7 +33,7 @@ func get(v *protocol.Value) *protocol.Value {
 	return &protocol.Value{Type: protocol.Bulk, Bulk: val}
 }
 
-func set(v *protocol.Value) *protocol.Value {
+func Set(v *protocol.Value, state *app.AppState) *protocol.Value {
 	args := v.Array[1:]
 
 	if len(args) != 2 {
@@ -43,17 +43,24 @@ func set(v *protocol.Value) *protocol.Value {
 	key := args[0].Bulk
 	val := args[1].Bulk
 
-	DB[key] = val
-	fmt.Println(DB)
+	app.Data.Set(key, val)
+
+	if state.Conf.AofEnabled && state.Aof != nil && state.Aof.W != nil {
+		slog.Info("saving AOF record")
+		state.Aof.W.Write(protocol.Deserialize(v))
+		if state.Conf.AofFsync == "always" {
+			state.Aof.W.Flush()
+		}
+	}
 
 	return &protocol.Value{Type: protocol.String, String: "OK"}
 }
 
-func ping(_ *protocol.Value) *protocol.Value {
+func ping(_ *protocol.Value, state *app.AppState) *protocol.Value {
 	return &protocol.Value{Type: protocol.String, String: "PONG"}
 }
 
-func command(_ *protocol.Value) *protocol.Value {
+func command(_ *protocol.Value, state *app.AppState) *protocol.Value {
 	return &protocol.Value{
 		Type:  protocol.Array,
 		Array: []protocol.Value{},
