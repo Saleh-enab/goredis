@@ -10,12 +10,12 @@ import (
 )
 
 type Config struct {
-	dir         string
-	rdb         []RDBSnapshot
-	rdbFilename string
-	aofEnabled  bool
-	aofFilename string
-	aofFsync    FsyncMode
+	Dir         string
+	Rdb         []RDBSnapshot
+	RdbFilename string
+	AofEnabled  bool
+	AofFilename string
+	AofFsync    FsyncMode
 }
 
 func NewConfig() *Config {
@@ -57,8 +57,8 @@ func ReadConf(filename string) *Config {
 		return conf
 	}
 
-	if conf.dir != "" {
-		os.MkdirAll(conf.dir, 0755)
+	if conf.Dir != "" {
+		os.MkdirAll(conf.Dir, 0755)
 	}
 
 	return conf
@@ -70,16 +70,16 @@ func parseLine(l string, conf *Config) {
 
 	switch cmd {
 	case "dir":
-		conf.dir = args[1]
+		conf.Dir = args[1]
 
 	case "appendonly":
-		conf.aofEnabled = args[1] == "yes"
+		conf.AofEnabled = args[1] == "yes"
 
 	case "appendfilename":
-		conf.aofFilename = args[1]
+		conf.AofFilename = args[1]
 
 	case "appenfsync":
-		conf.aofFsync = FsyncMode(args[1])
+		conf.AofFsync = FsyncMode(args[1])
 
 	case "save":
 		secs, err := strconv.Atoi(args[1])
@@ -99,9 +99,9 @@ func parseLine(l string, conf *Config) {
 			KeysChanged: keysChanged,
 		}
 
-		conf.rdb = append(conf.rdb, snapshot)
+		conf.Rdb = append(conf.Rdb, snapshot)
 
 	case "dbfilename":
-		conf.rdbFilename = args[1]
+		conf.RdbFilename = args[1]
 	}
 }
