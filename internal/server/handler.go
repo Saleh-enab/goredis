@@ -8,11 +8,12 @@ import (
 	"net"
 	"strings"
 
+	"redis/internal/app"
 	"redis/internal/commands"
 	"redis/internal/protocol"
 )
 
-func HandleConnection(conn net.Conn) {
+func HandleConnection(conn net.Conn, state *app.AppState) {
 	defer conn.Close()
 
 	reader := bufio.NewReader(conn)
@@ -30,13 +31,13 @@ func HandleConnection(conn net.Conn) {
 			return
 		}
 
-		handleCommand(writer, &v)
+		handleCommand(writer, &v, state)
 
 		fmt.Println(v.Array)
 	}
 }
 
-func handleCommand(w *bufio.Writer, v *protocol.Value) {
+func handleCommand(w *bufio.Writer, v *protocol.Value, state *app.AppState) {
 	cmd := strings.ToUpper(v.Array[0].Bulk)
 
 	handler, ok := commands.Handlers[cmd]
@@ -45,33 +46,11 @@ func handleCommand(w *bufio.Writer, v *protocol.Value) {
 		return
 	}
 
-	res := handler(v)
+	res := handler(v, state)
 	sendResponse(w, res)
 }
 
 func sendResponse(w *bufio.Writer, v *protocol.Value) {
-	switch v.Type {
-
-	case protocol.Array:
-		w.Write([]byte(fmt.Sprintf("*%d\r\n", len(v.Array))))
-
-		for _, item := range v.Array {
-			sendResponse(w, &item)
-		}
-		return
-
-	case protocol.String:
-		w.Write([]byte(fmt.Sprintf("+%s\r\n", v.String)))
-
-	case protocol.Bulk:
-		w.Write([]byte(fmt.Sprintf("$%d\r\n%s\r\n", len(v.Bulk), v.Bulk)))
-
-	case protocol.Error:
-		w.Write([]byte(fmt.Sprintf("-%s\r\n", v.Error)))
-
-	case protocol.Null:
-		w.Write([]byte("$-1\r\n"))
-	}
-
+	w.Write(protocol.Deserialize(v))
 	w.Flush()
 }
