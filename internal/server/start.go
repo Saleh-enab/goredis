@@ -3,9 +3,16 @@ package server
 import (
 	"log/slog"
 	"net"
+
+	"redis/internal/app"
+	"redis/internal/config"
 )
 
 func Start(addr string) error {
+	slog.Info("Reading teh config file...")
+	conf := config.ReadConf("./redis.conf")
+	state := app.NewAppState(conf)
+
 	l, err := net.Listen("tcp", addr)
 	if err != nil {
 		return err
@@ -21,6 +28,6 @@ func Start(addr string) error {
 			continue
 		}
 
-		go HandleConnection(conn)
+		go HandleConnection(conn, state)
 	}
 }
