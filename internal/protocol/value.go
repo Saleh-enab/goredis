@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"log/slog"
 	"strconv"
 	"strings"
 )
@@ -86,4 +87,37 @@ func readBulk(r *bufio.Reader) (Value, error) {
 		Type: Bulk,
 		Bulk: string(data[:length]),
 	}, nil
+}
+
+func Deserialize(v *Value) []byte {
+	switch v.Type {
+
+	case Array:
+		var result []byte
+
+		// array header
+		result = append(result, []byte(fmt.Sprintf("*%d\r\n", len(v.Array)))...)
+
+		// append each item
+		for _, item := range v.Array {
+			result = append(result, Deserialize(&item)...)
+		}
+
+		return result
+
+	case String:
+		return []byte(fmt.Sprintf("+%s\r\n", v.String))
+
+	case Bulk:
+		return []byte(fmt.Sprintf("$%d\r\n%s\r\n", len(v.Bulk), v.Bulk))
+
+	case Error:
+		return []byte(fmt.Sprintf("-%s\r\n", v.Error))
+
+	case Null:
+		return []byte("$-1\r\n")
+	default:
+		slog.Error("Invalid type received")
+		return nil
+	}
 }
