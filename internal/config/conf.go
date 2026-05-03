@@ -1,4 +1,4 @@
-package main
+package config
 
 import (
 	"bufio"
@@ -35,7 +35,7 @@ const (
 	No       FsyncMode = "no"
 )
 
-func readConf(filename string) *Config {
+func ReadConf(filename string) *Config {
 	conf := NewConfig()
 
 	f, err := os.Open(filename)
@@ -49,7 +49,7 @@ func readConf(filename string) *Config {
 
 	for s.Scan() {
 		l := s.Text()
-		ParseLine(l, conf)
+		parseLine(l, conf)
 	}
 
 	if err := s.Err(); err != nil {
@@ -64,7 +64,7 @@ func readConf(filename string) *Config {
 	return conf
 }
 
-func ParseLine(l string, conf *Config) {
+func parseLine(l string, conf *Config) {
 	args := strings.Split(l, " ")
 	cmd := args[0]
 
