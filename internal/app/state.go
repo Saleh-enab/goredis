@@ -1,17 +1,10 @@
 package app
 
 import (
-	"bufio"
-	"io"
-	"log/slog"
-	"os"
-	"path"
-	"strings"
 	"time"
 
 	"redis/internal/config"
 	"redis/internal/persistence"
-	"redis/internal/protocol"
 )
 
 type AppState struct {
@@ -21,7 +14,11 @@ type AppState struct {
 
 func NewAppState(conf *config.Config) *AppState {
 	if conf.AofEnabled {
-		replayAOF(conf)
+		persistence.ReplayAOF(conf)
+	}
+
+	if len(conf.Rdb) > 0 {
+		persistence.SyncRDB(conf)
 	}
 
 	state := AppState{Conf: conf}
@@ -41,39 +38,9 @@ func NewAppState(conf *config.Config) *AppState {
 		}
 	}
 
+	if len(conf.Rdb) > 0 {
+		persistence.InitRDBTracker(conf)
+	}
+
 	return &state
-}
-
-func replayAOF(conf *config.Config) {
-	if conf.Dir == "" || conf.AofFilename == "" {
-		return
-	}
-
-	filePath := path.Join(conf.Dir, conf.AofFilename)
-	f, err := os.Open(filePath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return
-		}
-		slog.Error("cannot open AOF for replay", "filepath", filePath, "err", err)
-		return
-	}
-	defer f.Close()
-
-	r := bufio.NewReader(f)
-	for {
-		v := protocol.Value{}
-		err := v.ReadArray(r)
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			slog.Error("unexpected error while reading AOF records", "err", err)
-			break
-		}
-		if len(v.Array) < 3 || strings.ToUpper(v.Array[0].Bulk) != "SET" {
-			continue
-		}
-		Data.Set(v.Array[1].Bulk, v.Array[2].Bulk)
-	}
 }
