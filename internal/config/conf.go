@@ -88,9 +88,9 @@ func parseLine(l string, conf *Config) {
 			return
 		}
 
-		keysChanged, err := strconv.Atoi(args[1])
+		keysChanged, err := strconv.Atoi(args[2])
 		if err != nil {
-			fmt.Println("Invalid number of kays")
+			fmt.Println("Invalid number of keys")
 			return
 		}
 
