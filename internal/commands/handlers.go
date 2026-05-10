@@ -4,6 +4,8 @@ import (
 	"log/slog"
 
 	"redis/internal/app"
+	"redis/internal/db"
+	"redis/internal/persistence"
 	"redis/internal/protocol"
 )
 
@@ -25,7 +27,7 @@ func Get(v *protocol.Value, state *app.AppState) *protocol.Value {
 
 	key := args[0].Bulk
 
-	val, ok := app.Data.Get(key)
+	val, ok := db.Data.Get(key)
 	if !ok {
 		return &protocol.Value{Type: protocol.Null}
 	}
@@ -43,7 +45,11 @@ func Set(v *protocol.Value, state *app.AppState) *protocol.Value {
 	key := args[0].Bulk
 	val := args[1].Bulk
 
-	app.Data.Set(key, val)
+	if len(state.Conf.Rdb) > 0 {
+		persistence.IncrRDBTickers()
+	}
+
+	db.Data.Set(key, val)
 
 	if state.Conf.AofEnabled && state.Aof != nil && state.Aof.W != nil {
 		slog.Info("saving AOF record")
