@@ -2,7 +2,6 @@ package persistence
 
 import (
 	"encoding/gob"
-	"fmt"
 	"log/slog"
 	"os"
 	"path"
@@ -36,7 +35,7 @@ func InitRDBTracker(conf *config.Config) {
 			defer tracker.ticker.Stop()
 
 			for range tracker.ticker.C {
-				slog.Info(fmt.Sprintf("keys changed %d - keys required to change %d", tracker.keys, tracker.rdb.KeysChanged))
+				// slog.Info(fmt.Sprintf("keys changed %d - keys required to change %d", tracker.keys, tracker.rdb.KeysChanged))
 				if tracker.keys >= tracker.rdb.KeysChanged {
 					saveRDB(conf)
 				}
