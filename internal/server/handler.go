@@ -23,7 +23,7 @@ func HandleConnection(conn net.Conn, state *app.AppState) {
 		v := protocol.Value{Type: protocol.Array}
 
 		if err := v.ReadArray(reader); err != nil {
-			if err == io.EOF {
+			if err == io.EOF || strings.Contains(err.Error(), "forcibly closed by the remote host") {
 				slog.Info("client disconnected")
 				return
 			}
@@ -31,9 +31,9 @@ func HandleConnection(conn net.Conn, state *app.AppState) {
 			return
 		}
 
-		handleCommand(writer, &v, state)
+		fmt.Println("received: ", v.Array)
 
-		fmt.Println(v.Array)
+		handleCommand(writer, &v, state)
 	}
 }
 
