@@ -12,19 +12,21 @@ import (
 type ValueType string
 
 const (
-	Array  ValueType = "*"
-	Bulk   ValueType = "$"
-	String ValueType = "+"
-	Error  ValueType = "-"
-	Null   ValueType = ""
+	Array   ValueType = "*"
+	Bulk    ValueType = "$"
+	String  ValueType = "+"
+	Integer ValueType = ":"
+	Error   ValueType = "-"
+	Null    ValueType = ""
 )
 
 type Value struct {
-	Type   ValueType
-	Bulk   string
-	String string
-	Error  string
-	Array  []Value
+	Type    ValueType
+	Bulk    string
+	String  string
+	Integer int
+	Error   string
+	Array   []Value
 }
 
 func readLine(r *bufio.Reader) (string, error) {
@@ -107,6 +109,9 @@ func Deserialize(v *Value) []byte {
 
 	case String:
 		return []byte(fmt.Sprintf("+%s\r\n", v.String))
+
+	case Integer:
+		return []byte(fmt.Sprintf(":%d\r\n", v.Integer))
 
 	case Bulk:
 		return []byte(fmt.Sprintf("$%d\r\n%s\r\n", len(v.Bulk), v.Bulk))
