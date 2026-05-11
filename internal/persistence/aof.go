@@ -43,30 +43,67 @@ func ReplayAOF(conf *config.Config) {
 	}
 
 	filePath := path.Join(conf.Dir, conf.AofFilename)
+
 	f, err := os.Open(filePath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return
 		}
-		slog.Error("cannot open AOF for replay", "filepath", filePath, "err", err)
+
+		slog.Error("cannot open AOF for replay",
+			"filepath", filePath,
+			"err", err,
+		)
 		return
 	}
 	defer f.Close()
 
 	r := bufio.NewReader(f)
+
 	for {
 		v := protocol.Value{}
+
 		err := v.ReadArray(r)
+
 		if err == io.EOF {
 			break
 		}
+
 		if err != nil {
 			slog.Error("unexpected error while reading AOF records", "err", err)
 			break
 		}
-		if len(v.Array) < 3 || strings.ToUpper(v.Array[0].Bulk) != "SET" {
+
+		if len(v.Array) == 0 {
 			continue
 		}
-		db.Data.Set(v.Array[1].Bulk, v.Array[2].Bulk)
+
+		cmd := strings.ToUpper(v.Array[0].Bulk)
+
+		switch cmd {
+
+		case "SET":
+			if len(v.Array) < 3 {
+				continue
+			}
+
+			db.Data.Set(
+				v.Array[1].Bulk,
+				v.Array[2].Bulk,
+			)
+
+		case "DEL":
+			if len(v.Array) < 2 {
+				continue
+			}
+
+			keys := make([]string, 0, len(v.Array)-1)
+
+			for _, key := range v.Array[1:] {
+				keys = append(keys, key.Bulk)
+			}
+
+			db.Data.Delete(keys)
+		}
 	}
 }
