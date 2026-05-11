@@ -9,7 +9,7 @@ import (
 )
 
 func Start(addr string) error {
-	slog.Info("Reading teh config file...")
+	slog.Info("Reading the config file...")
 	conf := config.ReadConf("./redis.conf")
 	state := app.NewAppState(conf)
 
