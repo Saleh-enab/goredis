@@ -14,6 +14,9 @@ type Handler func(*protocol.Value, *app.AppState) *protocol.Value
 var Handlers = map[string]Handler{
 	"GET":     Get,
 	"SET":     Set,
+	"DEL":     Delete,
+	"EXISTS":  Exists,
+	"KEYS":    Keys,
 	"PING":    ping,
 	"COMMAND": command,
 }
@@ -60,6 +63,64 @@ func Set(v *protocol.Value, state *app.AppState) *protocol.Value {
 	}
 
 	return &protocol.Value{Type: protocol.String, String: "OK"}
+}
+
+func Delete(v *protocol.Value, state *app.AppState) *protocol.Value {
+	args := v.Array[1:]
+	var keys []string
+
+	if len(args) < 1 {
+		return &protocol.Value{Type: protocol.Error, Error: "ERR Invalid number of arguments for 'DELETE' command"}
+	}
+
+	for _, arg := range args {
+		keys = append(keys, arg.Bulk)
+	}
+
+	n := db.Data.Delete(keys)
+
+	if state.Conf.AofEnabled && state.Aof != nil && state.Aof.W != nil {
+		slog.Info("saving AOF record")
+		state.Aof.W.Write(protocol.Deserialize(v))
+		if state.Conf.AofFsync == "always" {
+			state.Aof.W.Flush()
+		}
+	}
+
+	return &protocol.Value{Type: protocol.Integer, Integer: n}
+}
+
+func Exists(v *protocol.Value, state *app.AppState) *protocol.Value {
+	args := v.Array[1:]
+	var keys []string
+
+	if len(args) < 1 {
+		return &protocol.Value{Type: protocol.Error, Error: "ERR Invalid number of arguments for 'EXISTS' command"}
+	}
+
+	for _, arg := range args {
+		keys = append(keys, arg.Bulk)
+	}
+
+	n := db.Data.Exists(keys)
+	return &protocol.Value{Type: protocol.Integer, Integer: n}
+}
+
+func Keys(v *protocol.Value, state *app.AppState) *protocol.Value {
+	args := v.Array[1:]
+	if len(args) > 1 {
+		return &protocol.Value{Type: protocol.Error, Error: "ERR Invalid number of arguments for 'KEYS' command"}
+	}
+
+	pattern := args[0].Bulk
+	matches := db.Data.Keys(pattern)
+
+	replay := protocol.Value{Type: protocol.Array}
+	for _, m := range matches {
+		replay.Array = append(replay.Array, protocol.Value{Type: protocol.Bulk, Bulk: m})
+	}
+
+	return &replay
 }
 
 func ping(_ *protocol.Value, state *app.AppState) *protocol.Value {
