@@ -17,6 +17,7 @@ var Handlers = map[string]Handler{
 	"DEL":     Delete,
 	"EXISTS":  Exists,
 	"KEYS":    Keys,
+	"SAVE":    Save,
 	"PING":    ping,
 	"COMMAND": command,
 }
@@ -121,6 +122,11 @@ func Keys(v *protocol.Value, state *app.AppState) *protocol.Value {
 	}
 
 	return &replay
+}
+
+func Save(v *protocol.Value, state *app.AppState) *protocol.Value {
+	persistence.SaveRDB(state.Conf)
+	return &protocol.Value{Type: protocol.String, String: "OK"}
 }
 
 func ping(_ *protocol.Value, state *app.AppState) *protocol.Value {

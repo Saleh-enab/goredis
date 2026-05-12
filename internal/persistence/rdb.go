@@ -37,7 +37,7 @@ func InitRDBTracker(conf *config.Config) {
 			for range tracker.ticker.C {
 				// slog.Info(fmt.Sprintf("keys changed %d - keys required to change %d", tracker.keys, tracker.rdb.KeysChanged))
 				if tracker.keys >= tracker.rdb.KeysChanged {
-					saveRDB(conf)
+					SaveRDB(conf)
 				}
 				tracker.keys = 0
 			}
@@ -52,7 +52,7 @@ func IncrRDBTickers() {
 	}
 }
 
-func saveRDB(conf *config.Config) {
+func SaveRDB(conf *config.Config) {
 	fp := path.Join(conf.Dir, conf.RdbFilename)
 	f, err := os.OpenFile(fp, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 	if err != nil {
@@ -62,7 +62,7 @@ func saveRDB(conf *config.Config) {
 	defer f.Close()
 
 	db.Data.Mu.RLock()
-	err = gob.NewEncoder(f).Encode(db.Data)
+	err = gob.NewEncoder(f).Encode(db.Data.M)
 	db.Data.Mu.RUnlock()
 
 	if err != nil {
@@ -83,7 +83,7 @@ func SyncRDB(conf *config.Config) {
 		return
 	}
 
-	err = gob.NewDecoder(f).Decode(&db.Data)
+	err = gob.NewDecoder(f).Decode(&db.Data.M)
 	if err != nil {
 		slog.Error("error decoding RDB file", "err", err)
 		return
