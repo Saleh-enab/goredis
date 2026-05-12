@@ -54,14 +54,17 @@ func IncrRDBTickers() {
 
 func saveRDB(conf *config.Config) {
 	fp := path.Join(conf.Dir, conf.RdbFilename)
-	f, err := os.OpenFile(fp, os.O_CREATE|os.O_WRONLY, 0644)
+	f, err := os.OpenFile(fp, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 	if err != nil {
 		slog.Error("error opening the RDB file", "err", err)
 		return
 	}
 	defer f.Close()
 
+	db.Data.Mu.RLock()
 	err = gob.NewEncoder(f).Encode(db.Data)
+	db.Data.Mu.RUnlock()
+
 	if err != nil {
 		slog.Error("error saving the RDB file", "err", err)
 		return
@@ -73,9 +76,10 @@ func saveRDB(conf *config.Config) {
 func SyncRDB(conf *config.Config) {
 	fp := path.Join(conf.Dir, conf.RdbFilename)
 
-	f, err := os.OpenFile(fp, os.O_CREATE|os.O_RDONLY, 0644)
+	f, err := os.Open(fp)
 	if err != nil {
 		slog.Error("error opening RDB file", "err", err)
+		f.Close()
 		return
 	}
 
