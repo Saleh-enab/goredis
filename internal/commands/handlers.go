@@ -2,6 +2,7 @@ package commands
 
 import (
 	"log/slog"
+	"maps"
 
 	"redis/internal/app"
 	"redis/internal/db"
@@ -18,6 +19,7 @@ var Handlers = map[string]Handler{
 	"EXISTS":  Exists,
 	"KEYS":    Keys,
 	"SAVE":    Save,
+	"BGSAVE":  BGSave,
 	"PING":    ping,
 	"COMMAND": command,
 }
@@ -125,7 +127,33 @@ func Keys(v *protocol.Value, state *app.AppState) *protocol.Value {
 }
 
 func Save(v *protocol.Value, state *app.AppState) *protocol.Value {
-	persistence.SaveRDB(state.Conf)
+	persistence.SaveRDB(state.Conf, state.RDB)
+	return &protocol.Value{Type: protocol.String, String: "OK"}
+}
+
+func BGSave(v *protocol.Value, state *app.AppState) *protocol.Value {
+	if state.RDB.BGSaveRunning {
+		return &protocol.Value{Type: protocol.Error, Error: "ERR background saving already in progress"}
+	}
+
+	cp := make(map[string]string, len(db.Data.M))
+
+	db.Data.Mu.RLock()
+	maps.Copy(cp, db.Data.M)
+	db.Data.Mu.RUnlock()
+
+	state.RDB.BGSaveRunning = true
+	state.RDB.DBCopy = cp
+
+	go func() {
+		defer func() {
+			state.RDB.BGSaveRunning = false
+			state.RDB.DBCopy = nil
+		}()
+
+		persistence.SaveRDB(state.Conf, state.RDB)
+	}()
+
 	return &protocol.Value{Type: protocol.String, String: "OK"}
 }
 
