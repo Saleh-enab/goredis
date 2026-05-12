@@ -10,28 +10,28 @@ import (
 var Data = &kvStore{M: make(map[string]string)}
 
 type kvStore struct {
-	mu sync.RWMutex
+	Mu sync.RWMutex
 	M  map[string]string
 }
 
 func (s *kvStore) Get(key string) (string, bool) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	s.Mu.RLock()
+	defer s.Mu.RUnlock()
 	v, ok := s.M[key]
 	return v, ok
 }
 
 func (s *kvStore) Set(key, val string) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.Mu.Lock()
+	defer s.Mu.Unlock()
 	s.M[key] = val
 }
 
 func (s *kvStore) Delete(keys []string) int {
 	var n int
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.Mu.Lock()
+	defer s.Mu.Unlock()
 
 	for _, key := range keys {
 		_, ok := s.M[key]
@@ -48,8 +48,8 @@ func (s *kvStore) Delete(keys []string) int {
 func (s *kvStore) Exists(keys []string) int {
 	var n int
 
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.Mu.Lock()
+	defer s.Mu.Unlock()
 
 	for _, key := range keys {
 		_, ok := s.M[key]
@@ -63,8 +63,8 @@ func (s *kvStore) Exists(keys []string) int {
 }
 
 func (s *kvStore) Keys(pattern string) []string {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	s.Mu.RLock()
+	defer s.Mu.RUnlock()
 
 	var matches []string
 	for key := range s.M {
