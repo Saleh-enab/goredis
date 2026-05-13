@@ -20,6 +20,8 @@ var Handlers = map[string]Handler{
 	"KEYS":    Keys,
 	"SAVE":    Save,
 	"BGSAVE":  BGSave,
+	"DBSIZE":  DBSize,
+	"FLUSHDB": FlushDB,
 	"PING":    ping,
 	"COMMAND": command,
 }
@@ -153,6 +155,30 @@ func BGSave(v *protocol.Value, state *app.AppState) *protocol.Value {
 
 		persistence.SaveRDB(state.Conf, state.RDB)
 	}()
+
+	return &protocol.Value{Type: protocol.String, String: "OK"}
+}
+
+func DBSize(v *protocol.Value, state *app.AppState) *protocol.Value {
+	db.Data.Mu.RLock()
+	size := len(db.Data.M)
+	db.Data.Mu.RUnlock()
+
+	return &protocol.Value{Type: protocol.Integer, Integer: size}
+}
+
+func FlushDB(v *protocol.Value, state *app.AppState) *protocol.Value {
+	db.Data.Flush()
+
+	if state.Conf.AofEnabled && state.Aof != nil && state.Aof.W != nil {
+		slog.Info("saving AOF record")
+		state.Aof.W.Write(protocol.Deserialize(v))
+		if state.Conf.AofFsync == "always" {
+			state.Aof.W.Flush()
+		}
+	}
+
+	go persistence.SaveRDB(state.Conf, state.RDB)
 
 	return &protocol.Value{Type: protocol.String, String: "OK"}
 }
