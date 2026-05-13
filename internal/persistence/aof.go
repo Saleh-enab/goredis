@@ -104,6 +104,10 @@ func ReplayAOF(conf *config.Config) {
 			}
 
 			db.Data.Delete(keys)
+
+		case "FLUSHDB":
+			db.Data.Flush()
 		}
+
 	}
 }

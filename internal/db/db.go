@@ -83,3 +83,9 @@ func (s *kvStore) Keys(pattern string) []string {
 
 	return matches
 }
+
+func (s *kvStore) Flush() {
+	s.Mu.Lock()
+	defer s.Mu.Unlock()
+	s.M = make(map[string]string)
+}
