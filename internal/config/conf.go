@@ -16,6 +16,8 @@ type Config struct {
 	AofEnabled  bool
 	AofFilename string
 	AofFsync    FsyncMode
+	RequirePass bool
+	Password    string
 }
 
 func NewConfig() *Config {
@@ -103,5 +105,9 @@ func parseLine(l string, conf *Config) {
 
 	case "dbfilename":
 		conf.RdbFilename = args[1]
+
+	case "requirepass":
+		conf.RequirePass = true
+		conf.Password = args[1]
 	}
 }

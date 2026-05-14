@@ -5,12 +5,13 @@ import (
 	"maps"
 
 	"redis/internal/app"
+	"redis/internal/client"
 	"redis/internal/db"
 	"redis/internal/persistence"
 	"redis/internal/protocol"
 )
 
-type Handler func(*protocol.Value, *app.AppState) *protocol.Value
+type Handler func(*client.Client, *protocol.Value, *app.AppState) *protocol.Value
 
 var Handlers = map[string]Handler{
 	"GET":     Get,
@@ -22,11 +23,16 @@ var Handlers = map[string]Handler{
 	"BGSAVE":  BGSave,
 	"DBSIZE":  DBSize,
 	"FLUSHDB": FlushDB,
+	"AUTH":    Auth,
 	"PING":    ping,
 	"COMMAND": command,
 }
 
-func Get(v *protocol.Value, state *app.AppState) *protocol.Value {
+var SafeCMDs = []string{
+	"COMMAND", "AUTH",
+}
+
+func Get(c *client.Client, v *protocol.Value, state *app.AppState) *protocol.Value {
 	args := v.Array[1:]
 
 	if len(args) != 1 {
@@ -43,7 +49,7 @@ func Get(v *protocol.Value, state *app.AppState) *protocol.Value {
 	return &protocol.Value{Type: protocol.Bulk, Bulk: val}
 }
 
-func Set(v *protocol.Value, state *app.AppState) *protocol.Value {
+func Set(c *client.Client, v *protocol.Value, state *app.AppState) *protocol.Value {
 	args := v.Array[1:]
 
 	if len(args) != 2 {
@@ -70,7 +76,7 @@ func Set(v *protocol.Value, state *app.AppState) *protocol.Value {
 	return &protocol.Value{Type: protocol.String, String: "OK"}
 }
 
-func Delete(v *protocol.Value, state *app.AppState) *protocol.Value {
+func Delete(c *client.Client, v *protocol.Value, state *app.AppState) *protocol.Value {
 	args := v.Array[1:]
 	var keys []string
 
@@ -95,7 +101,7 @@ func Delete(v *protocol.Value, state *app.AppState) *protocol.Value {
 	return &protocol.Value{Type: protocol.Integer, Integer: n}
 }
 
-func Exists(v *protocol.Value, state *app.AppState) *protocol.Value {
+func Exists(c *client.Client, v *protocol.Value, state *app.AppState) *protocol.Value {
 	args := v.Array[1:]
 	var keys []string
 
@@ -111,7 +117,7 @@ func Exists(v *protocol.Value, state *app.AppState) *protocol.Value {
 	return &protocol.Value{Type: protocol.Integer, Integer: n}
 }
 
-func Keys(v *protocol.Value, state *app.AppState) *protocol.Value {
+func Keys(c *client.Client, v *protocol.Value, state *app.AppState) *protocol.Value {
 	args := v.Array[1:]
 	if len(args) > 1 {
 		return &protocol.Value{Type: protocol.Error, Error: "ERR Invalid number of arguments for 'KEYS' command"}
@@ -128,12 +134,12 @@ func Keys(v *protocol.Value, state *app.AppState) *protocol.Value {
 	return &replay
 }
 
-func Save(v *protocol.Value, state *app.AppState) *protocol.Value {
+func Save(c *client.Client, v *protocol.Value, state *app.AppState) *protocol.Value {
 	persistence.SaveRDB(state.Conf, state.RDB)
 	return &protocol.Value{Type: protocol.String, String: "OK"}
 }
 
-func BGSave(v *protocol.Value, state *app.AppState) *protocol.Value {
+func BGSave(c *client.Client, v *protocol.Value, state *app.AppState) *protocol.Value {
 	if state.RDB.BGSaveRunning {
 		return &protocol.Value{Type: protocol.Error, Error: "ERR background saving already in progress"}
 	}
@@ -159,7 +165,7 @@ func BGSave(v *protocol.Value, state *app.AppState) *protocol.Value {
 	return &protocol.Value{Type: protocol.String, String: "OK"}
 }
 
-func DBSize(v *protocol.Value, state *app.AppState) *protocol.Value {
+func DBSize(c *client.Client, v *protocol.Value, state *app.AppState) *protocol.Value {
 	db.Data.Mu.RLock()
 	size := len(db.Data.M)
 	db.Data.Mu.RUnlock()
@@ -167,7 +173,7 @@ func DBSize(v *protocol.Value, state *app.AppState) *protocol.Value {
 	return &protocol.Value{Type: protocol.Integer, Integer: size}
 }
 
-func FlushDB(v *protocol.Value, state *app.AppState) *protocol.Value {
+func FlushDB(c *client.Client, v *protocol.Value, state *app.AppState) *protocol.Value {
 	db.Data.Flush()
 
 	if state.Conf.AofEnabled && state.Aof != nil && state.Aof.W != nil {
@@ -183,11 +189,28 @@ func FlushDB(v *protocol.Value, state *app.AppState) *protocol.Value {
 	return &protocol.Value{Type: protocol.String, String: "OK"}
 }
 
-func ping(_ *protocol.Value, state *app.AppState) *protocol.Value {
+func Auth(c *client.Client, v *protocol.Value, state *app.AppState) *protocol.Value {
+	args := v.Array[1:]
+
+	if len(args) != 1 {
+		return &protocol.Value{Type: protocol.Error, Error: "ERR Invalid number of arguments for 'AUTH' command"}
+	}
+
+	pass := args[0].Bulk
+	if pass == state.Conf.Password {
+		c.Authenticated = true
+		return &protocol.Value{Type: protocol.String, String: "OK"}
+	} else {
+		c.Authenticated = false
+		return &protocol.Value{Type: protocol.Error, Error: "ERR invalid password"}
+	}
+}
+
+func ping(c *client.Client, _ *protocol.Value, state *app.AppState) *protocol.Value {
 	return &protocol.Value{Type: protocol.String, String: "PONG"}
 }
 
-func command(_ *protocol.Value, state *app.AppState) *protocol.Value {
+func command(c *client.Client, _ *protocol.Value, state *app.AppState) *protocol.Value {
 	return &protocol.Value{
 		Type:  protocol.Array,
 		Array: []protocol.Value{},

@@ -6,9 +6,11 @@ import (
 	"io"
 	"log/slog"
 	"net"
+	"slices"
 	"strings"
 
 	"redis/internal/app"
+	"redis/internal/client"
 	"redis/internal/commands"
 	"redis/internal/protocol"
 )
@@ -16,8 +18,10 @@ import (
 func HandleConnection(conn net.Conn, state *app.AppState) {
 	defer conn.Close()
 
-	reader := bufio.NewReader(conn)
-	writer := bufio.NewWriter(conn)
+	c := client.NewClient(conn)
+
+	reader := bufio.NewReader(c.Conn)
+	writer := bufio.NewWriter(c.Conn)
 
 	for {
 		v := protocol.Value{Type: protocol.Array}
@@ -33,12 +37,17 @@ func HandleConnection(conn net.Conn, state *app.AppState) {
 
 		fmt.Println("received: ", v.Array)
 
-		handleCommand(writer, &v, state)
+		handleCommand(c, writer, &v, state)
 	}
 }
 
-func handleCommand(w *bufio.Writer, v *protocol.Value, state *app.AppState) {
+func handleCommand(c *client.Client, w *bufio.Writer, v *protocol.Value, state *app.AppState) {
 	cmd := strings.ToUpper(v.Array[0].Bulk)
+
+	if state.Conf.RequirePass && !c.Authenticated && !slices.Contains(commands.SafeCMDs, cmd) {
+		sendResponse(w, &protocol.Value{Type: protocol.Error, Error: "NOAUTH authentication required"})
+		return
+	}
 
 	handler, ok := commands.Handlers[cmd]
 	if !ok {
@@ -46,7 +55,7 @@ func handleCommand(w *bufio.Writer, v *protocol.Value, state *app.AppState) {
 		return
 	}
 
-	res := handler(v, state)
+	res := handler(c, v, state)
 	sendResponse(w, res)
 }
 
